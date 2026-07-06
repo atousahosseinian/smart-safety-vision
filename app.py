@@ -1,7 +1,7 @@
-import cv2
-import numpy as np
 import streamlit as st
 from PIL import Image
+
+from detector import SafetyDetector
 
 
 st.set_page_config(
@@ -11,7 +11,15 @@ st.set_page_config(
 )
 
 st.title("🦺 Smart Safety Vision Dashboard")
-st.write("Upload an image and apply basic computer vision processing.")
+st.write("Upload an image and detect objects using YOLO.")
+
+
+@st.cache_resource
+def load_detector():
+    return SafetyDetector()
+
+
+detector = load_detector()
 
 uploaded_file = st.file_uploader(
     "Upload an image",
@@ -20,20 +28,46 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
-    image_array = np.array(image)
 
-    col1, col2 = st.columns(2)
+    st.subheader("Input Image")
+    st.image(image, use_container_width=True)
 
-    with col1:
-        st.subheader("Original Image")
-        st.image(image, use_container_width=True)
+    if st.button("Run Object Detection"):
+        with st.spinner("Detecting objects..."):
+            result = detector.detect_image(image)
+            annotated_image = result.plot()
 
-    gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+        col1, col2 = st.columns(2)
 
-    with col2:
-        st.subheader("Grayscale Image")
-        st.image(gray_image, use_container_width=True, channels="GRAY")
+        with col1:
+            st.subheader("Original Image")
+            st.image(image, use_container_width=True)
 
-    st.success("Image processed successfully!")
+        with col2:
+            st.subheader("YOLO Detection Result")
+            st.image(annotated_image, use_container_width=True)
+
+        st.subheader("Detected Objects")
+
+        boxes = result.boxes
+        names = result.names
+
+        if boxes is not None and len(boxes) > 0:
+            detected_items = []
+
+            for box in boxes:
+                class_id = int(box.cls[0])
+                confidence = float(box.conf[0])
+
+                detected_items.append(
+                    {
+                        "Object": names[class_id],
+                        "Confidence": round(confidence, 2),
+                    }
+                )
+
+            st.table(detected_items)
+        else:
+            st.warning("No objects detected.")
 else:
     st.info("Please upload an image to start.")
