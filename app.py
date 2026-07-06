@@ -3,6 +3,7 @@ import streamlit as st
 from PIL import Image
 
 from detector import SafetyDetector
+from safety_rules import build_detection_summary
 
 
 st.set_page_config(
@@ -50,8 +51,11 @@ if uploaded_file is not None:
 
             annotated_image = result.plot()
 
-            # Convert BGR to RGB for correct display in Streamlit
-            annotated_image = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
+            # YOLO/OpenCV uses BGR, Streamlit expects RGB
+            annotated_image = cv2.cvtColor(
+                annotated_image,
+                cv2.COLOR_BGR2RGB,
+            )
 
         col1, col2 = st.columns(2)
 
@@ -83,6 +87,32 @@ if uploaded_file is not None:
                 )
 
             st.table(detected_items)
+
+            summary = build_detection_summary(detected_items)
+
+            st.subheader("Safety Summary")
+
+            metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+            with metric_col1:
+                st.metric("Persons", summary["person_count"])
+
+            with metric_col2:
+                st.metric("Vehicles", summary["vehicle_count"])
+
+            with metric_col3:
+                st.metric("Risk Level", summary["risk_level"])
+
+            if summary["risk_level"] == "Medium":
+                st.warning(summary["message"])
+            elif summary["risk_level"] == "Low":
+                st.info(summary["message"])
+            else:
+                st.success(summary["message"])
+
+            st.subheader("Object Counts")
+            st.json(dict(summary["object_counts"]))
+
         else:
             st.warning("No objects detected.")
 else:
